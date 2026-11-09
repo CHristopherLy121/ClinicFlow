@@ -22,7 +22,7 @@ import './App.css'
 
 const localEmailPreviewUrl = getLocalEmailPreviewUrl()
 
-type AppSection = 'home' | 'profile' | 'settings' | 'notifications' | 'help' | 'staff_access'
+type AppSection = 'home' | 'calendar' | 'profile' | 'settings' | 'notifications' | 'help' | 'staff_access'
 
 function BellIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="ui-icon"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
@@ -35,6 +35,7 @@ function MenuIcon() {
 function SectionIcon({ section }: { section: AppSection }) {
   const paths: Record<AppSection, string> = {
     home: 'M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6',
+    calendar: 'M7 2v3M17 2v3M3 9h18M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z',
     profile: 'M20 21a8 8 0 0 0-16 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
     settings: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 3.1-.2-.1a1.7 1.7 0 0 0-1.8.1l-.2.1h-3.6l-.1-.2a1.7 1.7 0 0 0-1.6-1l-.2.1-3.1-1.8.1-.2a1.7 1.7 0 0 0-.1-1.8l-.1-.2v-3.6l.2-.1a1.7 1.7 0 0 0 1-1.6l-.1-.2 1.8-3.1.2.1a1.7 1.7 0 0 0 1.8-.1l.2-.1h3.6l.1.2a1.7 1.7 0 0 0 1.6 1l.2-.1 3.1 1.8-.1.2a1.7 1.7 0 0 0 .1 1.8l.1.2v3.6l-.2.1a1.7 1.7 0 0 0-1 1.6Z',
     notifications: 'M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
@@ -269,12 +270,141 @@ function App() {
 
   const sectionTitle: Record<AppSection, string> = {
     home: 'Appointment & clinic access',
+    calendar: 'Calendar',
     profile: 'Your profile',
     settings: 'Accessibility settings',
     notifications: 'Notifications',
     help: 'Help and contact',
     staff_access: 'Staff access',
   }
+
+  const [selectedClinicName, setSelectedClinicName] = useState('Downtown Clinic')
+  const [selectedTime, setSelectedTime] = useState('11:15 AM')
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('month')
+  const [selectedDate, setSelectedDate] = useState(() => new Date(2025, 5, 11))
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(2025, 5, 1))
+  const [dateInputValue, setDateInputValue] = useState('2025-06-11')
+
+  const formatDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const formatFullDateLabel = (date: Date) => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(date)
+  const formatMonthLabel = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date)
+  const formatWeekdayShort = (date: Date) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).toUpperCase()
+
+  const dateFromValue = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number)
+    if (!year || !month || !day) return null
+
+    const nextDate = new Date(year, month - 1, day)
+    return Number.isNaN(nextDate.getTime()) ? null : nextDate
+  }
+
+  const jumpToDate = (nextDate: Date) => {
+    setSelectedDate(nextDate)
+    setCalendarMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1))
+    setDateInputValue(formatDateKey(nextDate))
+  }
+
+  const moveCalendarMonth = (direction: -1 | 1) => {
+    const nextMonth = new Date(calendarMonth)
+    nextMonth.setMonth(nextMonth.getMonth() + direction)
+    setCalendarMonth(nextMonth)
+
+    const updatedDate = new Date(selectedDate)
+    updatedDate.setMonth(updatedDate.getMonth() + direction)
+    setSelectedDate(updatedDate)
+    setDateInputValue(formatDateKey(updatedDate))
+  }
+
+  const timeOptionsByDate: Record<string, { label: string; slots: Array<{ time: string; status: 'your' | 'available' | 'booked' | 'selected'; section: 'morning' | 'afternoon' }> }> = {
+    '2025-06-11': {
+      label: 'Wednesday, June 11',
+      slots: [
+        { time: '8:30 AM', status: 'your', section: 'morning' },
+        { time: '9:00 AM', status: 'available', section: 'morning' },
+        { time: '9:30 AM', status: 'available', section: 'morning' },
+        { time: '10:15 AM', status: 'booked', section: 'morning' },
+        { time: '10:45 AM', status: 'available', section: 'morning' },
+        { time: '11:15 AM', status: 'selected', section: 'morning' },
+        { time: '1:00 PM', status: 'available', section: 'afternoon' },
+        { time: '1:45 PM', status: 'booked', section: 'afternoon' },
+        { time: '2:15 PM', status: 'available', section: 'afternoon' },
+        { time: '3:00 PM', status: 'available', section: 'afternoon' },
+      ],
+    },
+    '2025-06-09': {
+      label: 'Monday, June 9',
+      slots: [
+        { time: '8:00 AM', status: 'available', section: 'morning' },
+        { time: '9:15 AM', status: 'booked', section: 'morning' },
+        { time: '11:00 AM', status: 'available', section: 'morning' },
+        { time: '1:15 PM', status: 'available', section: 'afternoon' },
+        { time: '2:45 PM', status: 'booked', section: 'afternoon' },
+      ],
+    },
+    '2025-06-10': {
+      label: 'Tuesday, June 10',
+      slots: [
+        { time: '9:30 AM', status: 'available', section: 'morning' },
+        { time: '10:30 AM', status: 'booked', section: 'morning' },
+        { time: '12:00 PM', status: 'available', section: 'morning' },
+        { time: '2:00 PM', status: 'available', section: 'afternoon' },
+        { time: '3:15 PM', status: 'booked', section: 'afternoon' },
+      ],
+    },
+    '2025-06-12': {
+      label: 'Thursday, June 12',
+      slots: [
+        { time: '8:45 AM', status: 'available', section: 'morning' },
+        { time: '10:00 AM', status: 'available', section: 'morning' },
+        { time: '11:30 AM', status: 'booked', section: 'morning' },
+        { time: '1:30 PM', status: 'available', section: 'afternoon' },
+        { time: '2:30 PM', status: 'booked', section: 'afternoon' },
+      ],
+    },
+    '2025-06-13': {
+      label: 'Friday, June 13',
+      slots: [
+        { time: '9:00 AM', status: 'your', section: 'morning' },
+        { time: '10:15 AM', status: 'available', section: 'morning' },
+        { time: '12:15 PM', status: 'booked', section: 'morning' },
+        { time: '1:45 PM', status: 'available', section: 'afternoon' },
+        { time: '3:00 PM', status: 'available', section: 'afternoon' },
+      ],
+    },
+  }
+
+  const activeDateOptions = timeOptionsByDate[formatDateKey(selectedDate)] ?? {
+    label: formatFullDateLabel(selectedDate),
+    slots: [
+      { time: '9:00 AM', status: 'available', section: 'morning' },
+      { time: '10:30 AM', status: 'booked', section: 'morning' },
+      { time: '1:00 PM', status: 'available', section: 'afternoon' },
+      { time: '2:30 PM', status: 'available', section: 'afternoon' },
+    ],
+  }
+  const selectedDayLabel = activeDateOptions.label
+
+  const monthGridStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+  const monthGridStartOffset = (monthGridStart.getDay() + 6) % 7
+  const monthGridStartDate = new Date(monthGridStart)
+  monthGridStartDate.setDate(monthGridStart.getDate() - monthGridStartOffset)
+  const monthDays = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(monthGridStartDate)
+    date.setDate(monthGridStartDate.getDate() + index)
+    return date
+  })
+
+  const weekDates = Array.from({ length: 7 }, (_, index) => {
+    const startOfWeek = new Date(selectedDate)
+    const dayIndex = (startOfWeek.getDay() + 6) % 7
+    startOfWeek.setDate(startOfWeek.getDate() - dayIndex)
+    const date = new Date(startOfWeek)
+    date.setDate(startOfWeek.getDate() + index)
+    return date
+  })
+
+  const isCellSelected = (date: Date) => formatDateKey(date) === formatDateKey(selectedDate)
+  const isDateInCurrentMonth = (date: Date) => date.getMonth() === calendarMonth.getMonth()
 
   return (
     <LanguageProvider language={accessibilityPreferences.language}>
@@ -290,6 +420,7 @@ function App() {
           </div>
           <nav className="rail-navigation" aria-label={t('Main navigation')}>
             <button type="button" className="rail-link" aria-current={activeSection === 'home' ? 'page' : undefined} onClick={() => navigateTo('home')}><SectionIcon section="home" />{t('Home')}</button>
+            <button type="button" className="rail-link" aria-current={activeSection === 'calendar' ? 'page' : undefined} onClick={() => navigateTo('calendar')}><SectionIcon section="calendar" />{t('Calendar')}</button>
             <button type="button" className="rail-link" aria-current={activeSection === 'settings' ? 'page' : undefined} onClick={() => navigateTo('settings')}><SectionIcon section="settings" />{t('Settings')}</button>
             <button type="button" className="rail-link" aria-current={activeSection === 'profile' ? 'page' : undefined} onClick={() => navigateTo('profile')}><SectionIcon section="profile" />{t('Profile')}</button>
             {isPlatformAdmin && <button type="button" className="rail-link" aria-current={activeSection === 'staff_access' ? 'page' : undefined} onClick={() => navigateTo('staff_access')}><SectionIcon section="staff_access" />{t('Staff access')}</button>}
@@ -475,6 +606,215 @@ function App() {
               </>
             )}
 
+            {activeSection === 'calendar' && (
+              <section className="calendar-page" aria-label="Clinic calendar page">
+                <div className="calendar-main-panel">
+                  <div className="calendar-month-header">
+                    <div className="calendar-month-title-wrap">
+                      <h2>{calendarView === 'day' ? formatFullDateLabel(selectedDate) : formatMonthLabel(calendarMonth)}</h2>
+                      <div className="calendar-nav-buttons" aria-label="Navigate calendar">
+                        <button type="button" className="calendar-circle-button" aria-label="Previous month" onClick={() => moveCalendarMonth(-1)}>←</button>
+                        <button type="button" className="calendar-circle-button" aria-label="Next month" onClick={() => moveCalendarMonth(1)}>→</button>
+                      </div>
+                    </div>
+
+                    <div className="calendar-toolbar-right">
+                      <label className="calendar-date-input-wrap" htmlFor="calendar-date-input">
+                        <span className="sr-only">Pick a date</span>
+                        <input
+                          id="calendar-date-input"
+                          type="date"
+                          value={dateInputValue}
+                          onChange={(event) => {
+                            const nextValue = event.target.value
+                            setDateInputValue(nextValue)
+                            const parsed = dateFromValue(nextValue)
+                            if (parsed) {
+                              jumpToDate(parsed)
+                            }
+                          }}
+                        />
+                      </label>
+                      <button type="button" className="calendar-today-button" onClick={() => jumpToDate(new Date(2025, 5, 11))}>Today</button>
+                    </div>
+
+                    <div className="calendar-legend" aria-label="Calendar legend">
+                      <span className="calendar-legend-item"><i className="calendar-swatch calendar-swatch-green"></i>Yours</span>
+                      <span className="calendar-legend-item"><i className="calendar-swatch calendar-swatch-muted"></i>Booked</span>
+                      <div className="calendar-segmented" role="group" aria-label="Calendar view selector">
+                        {(['month', 'week', 'day'] as const).map((view) => (
+                          <button
+                            key={view}
+                            type="button"
+                            className={calendarView === view ? 'on' : ''}
+                            onClick={() => setCalendarView(view)}
+                          >
+                            {view.charAt(0).toUpperCase() + view.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {calendarView === 'month' && (
+                    <>
+                      <div className="calendar-weekdays" aria-hidden="true">
+                        {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((day) => <div key={day}>{day}</div>)}
+                      </div>
+
+                      <div className="calendar-grid" role="grid" aria-label={`${formatMonthLabel(calendarMonth)} calendar`}>
+                        {monthDays.map((date) => {
+                          const key = formatDateKey(date)
+                          const badgeForDate = timeOptionsByDate[key]
+                          const isSelected = isCellSelected(date)
+
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => jumpToDate(date)}
+                              className={['calendar-cell', isDateInCurrentMonth(date) ? '' : 'is-outside', isSelected ? 'is-selected' : ''].join(' ').trim()}
+                              aria-pressed={isSelected}
+                            >
+                              <span className="calendar-cell-number">{date.getDate()}</span>
+                              {badgeForDate?.slots.some((slot) => slot.status === 'your' || slot.status === 'selected') && (
+                                <span className="calendar-badge is-primary">{badgeForDate.slots.find((slot) => slot.status === 'your' || slot.status === 'selected')?.time ?? 'Booked'}</span>
+                              )}
+                              {badgeForDate?.slots.some((slot) => slot.status === 'booked') && (
+                                <span className="calendar-badge is-muted">{badgeForDate.slots.find((slot) => slot.status === 'booked')?.time ?? 'Booked'}</span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {calendarView === 'week' && (
+                    <div className="calendar-week-grid" role="grid" aria-label={`Week view for ${formatFullDateLabel(selectedDate)}`}>
+                      {weekDates.map((date) => {
+                        const key = formatDateKey(date)
+                        const slotSummary = timeOptionsByDate[key]?.slots ?? [
+                          { time: '9:00 AM', status: 'available' as const },
+                          { time: '1:30 PM', status: 'booked' as const },
+                        ]
+                        const isSelected = isCellSelected(date)
+
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            className={['calendar-week-day', isSelected ? 'is-selected' : ''].join(' ')}
+                            onClick={() => jumpToDate(date)}
+                          >
+                            <span className="calendar-week-day-header">
+                              <span>{formatWeekdayShort(date)}</span>
+                              <strong>{date.getDate()}</strong>
+                            </span>
+                            <span className="calendar-week-slot-list">
+                              {slotSummary.slice(0, 2).map((slot) => (
+                                <span key={`${key}-${slot.time}`} className={slot.status === 'booked' ? 'calendar-mini-badge is-muted' : 'calendar-mini-badge is-primary'}>{slot.time}</span>
+                              ))}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {calendarView === 'day' && (
+                    <div className="calendar-day-view" aria-label={`Day view for ${selectedDayLabel}`}>
+                      <div className="calendar-day-header">
+                        <span>{formatWeekdayShort(selectedDate)}</span>
+                        <strong>{selectedDate.getDate()}</strong>
+                      </div>
+
+                      <div className="calendar-day-slot-list">
+                        {activeDateOptions.slots.map((slot) => {
+                          const slotKey = `${selectedDayLabel}-${slot.time}`
+                          if (slot.status === 'booked') {
+                            return <div key={slotKey} className="calendar-day-slot is-booked"><span>{slot.time}</span><span>Booked</span></div>
+                          }
+
+                          if (slot.status === 'your') {
+                            return <div key={slotKey} className="calendar-day-slot is-your"><span>{slot.time}</span><span>Your appointment</span></div>
+                          }
+
+                          return (
+                            <button key={slotKey} type="button" className={['calendar-day-slot', 'is-available', selectedTime === slot.time ? 'is-selected' : ''].join(' ')} onClick={() => setSelectedTime(slot.time)}>
+                              <span>{slot.time}</span>
+                              <span>{selectedTime === slot.time ? 'Selected' : 'Available'}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <aside className="time-picker-panel" aria-label="Pick a time">
+                  <button type="button" className="time-picker-back" aria-label="Back to my appointments">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                    My appointments
+                  </button>
+
+                  <div className="time-picker-header-block">
+                    <h2>{selectedDayLabel}</h2>
+                    <div className="time-picker-subtitle">Choose an available time</div>
+                  </div>
+
+                  <div className="time-picker-clinic-block">
+                    <label htmlFor="calendar-clinic-select">Clinic</label>
+                    <select id="calendar-clinic-select" value={selectedClinicName} onChange={(event) => setSelectedClinicName(event.target.value)}>
+                      <option>Downtown Clinic</option>
+                      <option>Northside Clinic</option>
+                      <option>Community Care</option>
+                    </select>
+                  </div>
+
+                  <div className="time-picker-body">
+                    {(['morning', 'afternoon'] as const).map((section) => (
+                      <div key={section} className="time-picker-section">
+                        <h3 className="time-picker-heading">{section === 'morning' ? 'Morning' : 'Afternoon'}</h3>
+                        <div className="time-picker-list">
+                          {activeDateOptions.slots.filter((slot) => slot.section === section).map((slot) => {
+                            const isSelected = selectedTime === slot.time && slot.status !== 'booked' && slot.status !== 'your'
+                            if (slot.status === 'booked') {
+                              return <div key={slot.time} className="time-picker-row is-booked"><span>{slot.time}</span><span>Booked</span></div>
+                            }
+
+                            if (slot.status === 'your') {
+                              return <div key={slot.time} className="time-picker-row is-your"><span>{slot.time}</span><span>Your appointment</span></div>
+                            }
+
+                            return (
+                              <button
+                                key={slot.time}
+                                type="button"
+                                className={['time-picker-row', 'is-available', isSelected ? 'is-selected' : ''].join(' ')}
+                                aria-pressed={isSelected}
+                                onClick={() => setSelectedTime(slot.time)}
+                              >
+                                <span>{slot.time}</span>
+                                <span>{isSelected ? 'Selected' : 'Available'}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="time-picker-footer">
+                    <button type="button" className="time-picker-book-button">
+                      Book {selectedTime} at {selectedClinicName}
+                    </button>
+                    <p>Booked times are unavailable. No details are shown.</p>
+                  </div>
+                </aside>
+              </section>
+            )}
+
             {user && (
               <div className="settings-page-grid" hidden={activeSection !== 'profile'}>
                 <PatientProfilePanel key={user.id} userId={user.id} onProfileReady={setHasPatientProfile} />
@@ -515,6 +855,7 @@ function App() {
 
       <nav className="mobile-bottom-navigation" aria-label="Main navigation">
         <button type="button" className="mobile-nav-link" aria-current={activeSection === 'home' ? 'page' : undefined} onClick={() => navigateTo('home')}><SectionIcon section="home" />{t('Home')}</button>
+        <button type="button" className="mobile-nav-link" aria-current={activeSection === 'calendar' ? 'page' : undefined} onClick={() => navigateTo('calendar')}><SectionIcon section="calendar" />{t('Calendar')}</button>
         <button type="button" className="mobile-nav-link" aria-current={activeSection === 'profile' ? 'page' : undefined} onClick={() => navigateTo('profile')}><SectionIcon section="profile" />{t('Profile')}</button>
         <button type="button" className="mobile-nav-link" aria-current={activeSection === 'settings' ? 'page' : undefined} onClick={() => navigateTo('settings')}><SectionIcon section="settings" />{t('Settings')}</button>
       </nav>
